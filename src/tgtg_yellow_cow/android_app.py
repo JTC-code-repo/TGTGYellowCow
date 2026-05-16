@@ -9,6 +9,7 @@ from tkinter import messagebox, ttk
 from typing import Any
 
 from .android_monitor import (
+    DEFAULT_LOGIN_KEYWORDS,
     DEFAULT_NEGATIVE_KEYWORDS,
     DEFAULT_POSITIVE_KEYWORDS,
     AndroidMonitor,
@@ -39,8 +40,9 @@ class AndroidMonitorApp(tk.Tk):
         root.pack(fill=tk.BOTH, expand=True)
 
         intro = (
-            "Use an Android emulator/device where the official Too Good To Go app is already logged in. "
-            "Navigate to the store/bag screen you want to watch, then start monitoring. "
+            "Use an Android emulator/device and log in inside the official Too Good To Go app. "
+            "This is the real login flow: the official app owns the session in the emulator. "
+            "After login, navigate to the store/bag screen you want to watch and start monitoring. "
             "This reads visible UI text through ADB; it does not bypass login/captcha and does not auto-purchase."
         )
         ttk.Label(root, text=intro, wraplength=860, justify=tk.LEFT).pack(fill=tk.X)
@@ -55,17 +57,20 @@ class AndroidMonitorApp(tk.Tk):
         self._field(settings, "Serial", self.serial_var, 16)
         self._field(settings, "Package", self.package_var, 16)
         self._field(settings, "Poll sec", self.poll_var, 8)
-        ttk.Button(settings, text="Launch official app", command=self._launch_app).pack(side=tk.LEFT, padx=4, pady=6)
-        ttk.Button(settings, text="Check once", command=self._check_once).pack(side=tk.LEFT, padx=4, pady=6)
+        ttk.Button(settings, text="Open official app / login", command=self._launch_app).pack(side=tk.LEFT, padx=4, pady=6)
+        ttk.Button(settings, text="Check login/screen once", command=self._check_once).pack(side=tk.LEFT, padx=4, pady=6)
 
         keywords = ttk.LabelFrame(root, text="Detection keywords")
         keywords.pack(fill=tk.X, pady=(10, 0))
         self.positive_var = tk.StringVar(value=", ".join(DEFAULT_POSITIVE_KEYWORDS))
         self.negative_var = tk.StringVar(value=", ".join(DEFAULT_NEGATIVE_KEYWORDS))
+        self.login_var = tk.StringVar(value=", ".join(DEFAULT_LOGIN_KEYWORDS))
         ttk.Label(keywords, text="Available words").pack(anchor=tk.W, padx=8, pady=(6, 0))
         ttk.Entry(keywords, textvariable=self.positive_var).pack(fill=tk.X, padx=8)
         ttk.Label(keywords, text="Sold-out/blocking words").pack(anchor=tk.W, padx=8, pady=(6, 0))
-        ttk.Entry(keywords, textvariable=self.negative_var).pack(fill=tk.X, padx=8, pady=(0, 8))
+        ttk.Entry(keywords, textvariable=self.negative_var).pack(fill=tk.X, padx=8)
+        ttk.Label(keywords, text="Login/onboarding words").pack(anchor=tk.W, padx=8, pady=(6, 0))
+        ttk.Entry(keywords, textvariable=self.login_var).pack(fill=tk.X, padx=8, pady=(0, 8))
 
         controls = ttk.Frame(root)
         controls.pack(fill=tk.X, pady=(10, 0))
@@ -105,6 +110,7 @@ class AndroidMonitorApp(tk.Tk):
             poll_seconds=poll_seconds,
             positive_keywords=parse_keywords(self.positive_var.get()),
             negative_keywords=parse_keywords(self.negative_var.get()),
+            login_keywords=parse_keywords(self.login_var.get()),
         )
 
     def _monitor(self) -> AndroidMonitor | None:
@@ -120,7 +126,7 @@ class AndroidMonitorApp(tk.Tk):
     def _launch(self, monitor: AndroidMonitor) -> str:
         monitor.ensure_device()
         monitor.launch_app()
-        return "Official app launch command sent. Navigate to the store/bag screen to watch."
+        return "Official app launch command sent. Log in there if needed, then navigate to the store/bag screen to watch."
 
     def _check_once(self) -> None:
         monitor = self._monitor()
@@ -155,7 +161,9 @@ class AndroidMonitorApp(tk.Tk):
             try:
                 result = monitor.detect_current_screen()
                 self.events.put(("android_result", result))
-                if result.is_available:
+                if result.login_required:
+                    self.events.put(("android_login_required", result))
+                elif result.is_available:
                     self.events.put(("android_available", result))
                     self.stop_event.set()
                     break
@@ -185,6 +193,8 @@ class AndroidMonitorApp(tk.Tk):
                 self._show_result(payload)
             elif event == "android_available":
                 self._prompt_available(payload)
+            elif event == "android_login_required":
+                self._show_login_required(payload)
             elif event == "android_error":
                 self._append_output(f"ERROR:\n{payload}")
                 self.status_var.set(f"Error: {payload}")
@@ -197,11 +207,15 @@ class AndroidMonitorApp(tk.Tk):
             summary = (
                 f"Available: {'yes' if payload.is_available else 'no'}\n"
                 f"Matched available words: {', '.join(payload.matched_positive) or '(none)'}\n"
-                f"Matched sold-out/blocking words: {', '.join(payload.matched_negative) or '(none)'}\n\n"
+                f"Matched sold-out/blocking words: {', '.join(payload.matched_negative) or '(none)'}\n"
+                f"Matched login/onboarding words: {', '.join(payload.matched_login) or '(none)'}\n\n"
                 f"Visible text:\n{payload.screen_text}"
             )
             self._append_output(summary)
-            self.status_var.set("Bag-like availability detected." if payload.is_available else "Checked screen; no availability detected.")
+            if payload.login_required:
+                self.status_var.set("Official app still appears to be on login/onboarding. Finish login in the emulator.")
+            else:
+                self.status_var.set("Bag-like availability detected." if payload.is_available else "Checked screen; no availability detected.")
         else:
             self._append_output(payload)
             self.status_var.set(payload)
@@ -211,6 +225,9 @@ class AndroidMonitorApp(tk.Tk):
         self.output_text.delete("1.0", tk.END)
         self.output_text.insert(tk.END, text)
         self.output_text.configure(state=tk.NORMAL)
+
+    def _show_login_required(self, result: DetectionResult) -> None:
+        self.status_var.set("Finish the real login inside the official Android app, then navigate to a bag screen.")
 
     def _prompt_available(self, result: DetectionResult) -> None:
         messagebox.showinfo(

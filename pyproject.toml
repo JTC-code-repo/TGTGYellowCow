@@ -18,8 +18,9 @@ dev = [
 ]
 
 [project.scripts]
-tgtg-yellow-cow = "tgtg_yellow_cow.app:main"
+tgtg-yellow-cow = "tgtg_yellow_cow.android_app:main"
 tgtg-yellow-cow-android = "tgtg_yellow_cow.android_app:main"
+tgtg-yellow-cow-api = "tgtg_yellow_cow.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

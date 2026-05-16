@@ -1,15 +1,15 @@
 # TGTG Yellow Cow
 
-A minimal desktop monitor for nearby Too Good To Go surprise bags.
+A minimal desktop monitor for nearby Too Good To Go surprise bags. The default mode now uses an Android emulator and the official Too Good To Go app for real login, then watches visible app text through ADB.
 
 ## What it does
 
-- Logs in with your Too Good To Go e-mail link and stores the returned access token, refresh token, and cookie in the app config file with private file permissions where supported.
-- Lists nearby Too Good To Go store bags for a latitude, longitude, and radius.
-- Lets you select one store bag, click **Start**, and poll that item until a bag is available.
-- Pops up a confirmation prompt when availability appears.
-- If you click **Buy**, the app creates a reservation for one bag. The unofficial Python client cannot complete payment, so finish checkout in the official Too Good To Go mobile app.
-- If you click **Skip**, no reservation is created.
+- Opens the official Too Good To Go Android app in an emulator/device so you can log in normally there.
+- Reads the current official app screen with ADB/uiautomator; it does not call the unofficial login API.
+- Lets you navigate manually to a store/bag screen and click **Start monitoring current screen**.
+- Pops up a notification when the screen text matches available-bag keywords and does not match sold-out keywords.
+- Does not bypass captcha/bot-protection and does not auto-purchase; review and reserve manually in the official app.
+- Keeps the older unofficial API monitor available as `tgtg-yellow-cow-api` for experiments only.
 
 ## Install on Windows
 
@@ -62,25 +62,26 @@ After activating the virtual environment, run:
 tgtg-yellow-cow
 ```
 
-If Windows cannot find the script for any reason, run the module directly:
+`tgtg-yellow-cow` launches the Android emulator monitor. If Windows cannot find the script for any reason, run the module directly:
 
 ```powershell
-python -m tgtg_yellow_cow.app
+python -m tgtg_yellow_cow.android_app
 ```
 
 Then:
 
-1. Click **Login / refresh credentials**.
-2. Enter the e-mail address for your Too Good To Go account.
-3. Approve the login from the e-mail Too Good To Go sends you.
-4. Enter your latitude, longitude, radius, and polling interval.
-5. Click **Load stores**.
-6. Select a store bag and click **Start**.
+1. Start your Android emulator/device.
+2. Click **Open official app / login**.
+3. Log in normally inside the official Too Good To Go app in the emulator.
+4. Navigate manually to the store/bag screen you want to monitor.
+5. Click **Check login/screen once** to confirm the tool can read the screen.
+6. Adjust available/sold-out/login keywords if the visible text uses different words.
+7. Click **Start monitoring current screen**.
 
 
-### Manual credentials instead of e-mail login
+### Legacy API mode and manual credentials
 
-If `Login / refresh credentials` is blocked by HTTP 403 captcha protection, do not keep retrying the e-mail login endpoint. If you already have credentials from a legitimate existing Too Good To Go session, click **Paste credentials JSON** and paste:
+The old unofficial API monitor is still available with `tgtg-yellow-cow-api`, but the Android emulator mode above is the recommended path. If `Login / refresh credentials` is blocked by HTTP 403 captcha protection, do not keep retrying the e-mail login endpoint. If you already have credentials from a legitimate existing Too Good To Go session, click **Paste credentials JSON** and paste:
 
 ```json
 {
@@ -103,7 +104,7 @@ If the latest library still receives HTTP 403 captcha responses, that is a Too G
 
 ## Android emulator UI automation mode
 
-If the API/e-mail login path keeps failing with HTTP 403 captcha protection, use the official Android app instead:
+This is the primary supported mode because the API/e-mail login path can be blocked by HTTP 403 captcha protection. Use the official Android app instead:
 
 1. Install Android Studio or another Android emulator.
 2. Install the official Too Good To Go app in the emulator and log in manually.
@@ -116,12 +117,14 @@ adb devices
 4. Start the ADB monitor UI:
 
 ```powershell
-tgtg-yellow-cow-android
+tgtg-yellow-cow
 ```
 
-5. Click **Launch official app**, navigate inside the official app to the store/bag screen you care about, adjust the available/sold-out keywords if needed, then click **Start monitoring current screen**.
+`tgtg-yellow-cow-android` also works as an explicit alias.
 
-This mode does not call the unofficial API, does not try to bypass captcha, and does not auto-purchase. It reads visible/accessibility text from the already logged-in official app through `adb shell uiautomator dump`; when the configured availability words match and sold-out words do not match, it notifies you to review the emulator and act manually.
+5. Click **Open official app / login**, complete real login inside the official app, navigate to the store/bag screen you care about, adjust the available/sold-out/login keywords if needed, then click **Start monitoring current screen**.
+
+This mode does not call the unofficial API, does not try to bypass captcha, and does not auto-purchase. It reads visible/accessibility text from the official app through `adb shell uiautomator dump`; when login/onboarding words are detected it reminds you to finish login, and when configured availability words match without sold-out words it notifies you to review the emulator and act manually.
 
 The default Android package name is `com.app.tgtg`. If the official app package differs on your emulator, change the Package field in the Android monitor window.
 

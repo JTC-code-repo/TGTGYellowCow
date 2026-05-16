@@ -24,6 +24,14 @@ DEFAULT_NEGATIVE_KEYWORDS = (
     "fully booked",
     "check again later",
 )
+DEFAULT_LOGIN_KEYWORDS = (
+    "log in",
+    "login",
+    "sign in",
+    "continue with email",
+    "email address",
+    "continue",
+)
 
 
 class ADBError(RuntimeError):
@@ -40,6 +48,7 @@ class AndroidMonitorConfig:
     poll_seconds: int = 30
     positive_keywords: tuple[str, ...] = field(default_factory=lambda: DEFAULT_POSITIVE_KEYWORDS)
     negative_keywords: tuple[str, ...] = field(default_factory=lambda: DEFAULT_NEGATIVE_KEYWORDS)
+    login_keywords: tuple[str, ...] = field(default_factory=lambda: DEFAULT_LOGIN_KEYWORDS)
 
 
 @dataclass(frozen=True)
@@ -49,7 +58,14 @@ class DetectionResult:
     is_available: bool
     matched_positive: tuple[str, ...]
     matched_negative: tuple[str, ...]
+    matched_login: tuple[str, ...]
     screen_text: str
+
+    @property
+    def login_required(self) -> bool:
+        """Whether the current screen still appears to be a login/onboarding screen."""
+
+        return bool(self.matched_login)
 
 
 CommandRunner = Callable[[list[str]], subprocess.CompletedProcess[str]]
@@ -109,6 +125,7 @@ class AndroidMonitor:
             self.read_screen_text(),
             self.config.positive_keywords,
             self.config.negative_keywords,
+            self.config.login_keywords,
         )
 
     def _run(self, *args: str) -> subprocess.CompletedProcess[str]:
@@ -151,15 +168,18 @@ def detect_availability(
     screen_text: str,
     positive_keywords: Sequence[str] = DEFAULT_POSITIVE_KEYWORDS,
     negative_keywords: Sequence[str] = DEFAULT_NEGATIVE_KEYWORDS,
+    login_keywords: Sequence[str] = DEFAULT_LOGIN_KEYWORDS,
 ) -> DetectionResult:
     """Detect availability from screen text without automating purchase actions."""
 
     normalized = screen_text.lower()
     positives = tuple(keyword for keyword in positive_keywords if keyword and keyword.lower() in normalized)
     negatives = tuple(keyword for keyword in negative_keywords if keyword and keyword.lower() in normalized)
+    login_matches = tuple(keyword for keyword in login_keywords if keyword and keyword.lower() in normalized)
     return DetectionResult(
-        is_available=bool(positives) and not negatives,
+        is_available=bool(positives) and not negatives and not login_matches,
         matched_positive=positives,
         matched_negative=negatives,
+        matched_login=login_matches,
         screen_text=screen_text,
     )

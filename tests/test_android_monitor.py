@@ -34,13 +34,17 @@ def test_extract_visible_text_reads_text_and_content_description():
 
 
 def test_detect_availability_requires_positive_without_negative():
-    available = detect_availability("Store A\n1 magic bag available", ("available",), ("sold out",))
-    sold_out = detect_availability("Store A\nSold out", ("available",), ("sold out",))
+    available = detect_availability("Store A\n1 magic bag available", ("available",), ("sold out",), ("log in",))
+    sold_out = detect_availability("Store A\nSold out", ("available",), ("sold out",), ("log in",))
+    login = detect_availability("Log in to continue\n1 bag available", ("available",), ("sold out",), ("log in",))
 
     assert available.is_available is True
     assert available.matched_positive == ("available",)
     assert sold_out.is_available is False
     assert sold_out.matched_negative == ("sold out",)
+    assert login.is_available is False
+    assert login.login_required is True
+    assert login.matched_login == ("log in",)
 
 
 def test_android_monitor_builds_serial_command_and_reads_screen():
@@ -60,6 +64,7 @@ def test_android_monitor_builds_serial_command_and_reads_screen():
     result = monitor.detect_current_screen()
 
     assert result.is_available is True
+    assert result.login_required is False
     assert calls[0][:3] == ["adb", "-s", "emulator-5554"]
 
 
