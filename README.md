@@ -100,6 +100,31 @@ python -m pip install -U tgtg
 
 If the latest library still receives HTTP 403 captcha responses, that is a Too Good To Go risk-control block on the login endpoint, not something this app can safely bypass.
 
+
+## Android emulator UI automation mode
+
+If the API/e-mail login path keeps failing with HTTP 403 captcha protection, use the official Android app instead:
+
+1. Install Android Studio or another Android emulator.
+2. Install the official Too Good To Go app in the emulator and log in manually.
+3. Confirm ADB can see the emulator:
+
+```powershell
+adb devices
+```
+
+4. Start the ADB monitor UI:
+
+```powershell
+tgtg-yellow-cow-android
+```
+
+5. Click **Launch official app**, navigate inside the official app to the store/bag screen you care about, adjust the available/sold-out keywords if needed, then click **Start monitoring current screen**.
+
+This mode does not call the unofficial API, does not try to bypass captcha, and does not auto-purchase. It reads visible/accessibility text from the already logged-in official app through `adb shell uiautomator dump`; when the configured availability words match and sold-out words do not match, it notifies you to review the emulator and act manually.
+
+The default Android package name is `com.app.tgtg`. If the official app package differs on your emulator, change the Package field in the Android monitor window.
+
 ## Test on Windows
 
 Install the test dependencies and run the automated tests:
