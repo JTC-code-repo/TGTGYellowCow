@@ -91,6 +91,8 @@ def request_credentials(email: str) -> Credentials:
 def format_tgtg_error(exc: Exception) -> str:
     """Return a clearer error message for known Too Good To Go failures."""
 
+    if isinstance(exc, TgtgLoginBlockedError):
+        return str(exc)
     if _is_captcha_challenge(exc):
         captcha_url = _extract_captcha_url(exc)
         lines = [
@@ -147,6 +149,7 @@ def _exception_text(exc: Exception) -> str:
         else:
             parts.append(str(arg))
     return "\n".join(parts)
+
 
 def fetch_nearby_bags(
     client: TgtgClientProtocol,

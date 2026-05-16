@@ -1,5 +1,6 @@
 from tgtg_yellow_cow.tgtg_client import (
     StoreBag,
+    TgtgLoginBlockedError,
     fetch_nearby_bags,
     format_money,
     format_tgtg_error,
@@ -82,3 +83,17 @@ def test_format_tgtg_error_explains_captcha_block():
     assert "captcha/bot-protection" in message
     assert "unofficial Python client cannot solve" in message
     assert "https://geo.captcha-delivery.com/interstitial/" in message
+
+
+def test_format_tgtg_error_does_not_duplicate_preformatted_login_block():
+    raw_error = Exception(
+        403,
+        b'{"url":"https://geo.captcha-delivery.com/interstitial/?initialCid=abc"}',
+    )
+    first_message = format_tgtg_error(raw_error)
+
+    second_message = format_tgtg_error(TgtgLoginBlockedError(first_message))
+
+    assert second_message == first_message
+    assert second_message.count("Too Good To Go returned HTTP 403") == 1
+    assert second_message.count("Original error:") == 1
