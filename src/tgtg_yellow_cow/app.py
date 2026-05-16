@@ -133,10 +133,10 @@ class TgtgMonitorApp(tk.Tk):
             radius_km = float(self.radius_var.get())
             poll_seconds = int(self.poll_var.get())
         except ValueError:
-            messagebox.showerror("Invalid settings", "Latitude, longitude, radius, and poll seconds must be numbers.")
+            self._show_selectable_error("Invalid settings", "Latitude, longitude, radius, and poll seconds must be numbers.")
             return None
         if poll_seconds < 15:
-            messagebox.showerror("Invalid settings", "Please poll no faster than every 15 seconds.")
+            self._show_selectable_error("Invalid settings", "Please poll no faster than every 15 seconds.")
             return None
         return AppConfig(self.config_data.credentials, latitude, longitude, radius_km, poll_seconds)
 
@@ -229,9 +229,48 @@ class TgtgMonitorApp(tk.Tk):
                 callback, result = payload
                 callback(result)
             elif event == "background_error":
-                messagebox.showerror("Error", str(payload))
+                self._show_selectable_error("Error", str(payload))
                 self.status_var.set(f"Error: {payload}")
         self.after(150, self._drain_events)
+
+
+    def _show_selectable_error(self, title: str, message: str) -> None:
+        """Show an error dialog whose text can be selected and copied."""
+
+        dialog = tk.Toplevel(self)
+        dialog.title(title)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("640x320")
+        dialog.minsize(420, 220)
+
+        ttk.Label(dialog, text=title, padding=(12, 12, 12, 0), font=("TkDefaultFont", 10, "bold")).pack(
+            anchor=tk.W
+        )
+        text_frame = ttk.Frame(dialog, padding=12)
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        error_text = tk.Text(text_frame, wrap=tk.WORD, height=8, undo=False)
+        error_text.insert("1.0", message)
+        error_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar = ttk.Scrollbar(text_frame, command=error_text.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        error_text.configure(yscrollcommand=scrollbar.set)
+        error_text.focus_set()
+        error_text.tag_add(tk.SEL, "1.0", tk.END)
+
+        buttons = ttk.Frame(dialog, padding=(12, 0, 12, 12))
+        buttons.pack(fill=tk.X)
+
+        def copy_message() -> None:
+            self.clipboard_clear()
+            self.clipboard_append(message)
+            self.update_idletasks()
+            self.status_var.set("Error copied to clipboard.")
+
+        ttk.Button(buttons, text="Copy error", command=copy_message).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(buttons, text="Close", command=dialog.destroy).pack(side=tk.RIGHT, padx=4)
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.wait_window()
 
     def _prompt_purchase(self, bag: StoreBag) -> None:
         dialog = tk.Toplevel(self)
