@@ -1,4 +1,11 @@
-from tgtg_yellow_cow.tgtg_client import StoreBag, fetch_nearby_bags, format_money, refresh_bag, reserve_bag
+from tgtg_yellow_cow.tgtg_client import (
+    StoreBag,
+    fetch_nearby_bags,
+    format_money,
+    format_tgtg_error,
+    refresh_bag,
+    reserve_bag,
+)
 
 
 class FakeClient:
@@ -61,3 +68,17 @@ def test_refresh_and_reserve_bag():
     assert refreshed.items_available == 1
     assert order["state"] == "RESERVED"
     assert client.created_orders == [("1", 1)]
+
+
+def test_format_tgtg_error_explains_captcha_block():
+    error = Exception(
+        403,
+        b'{"url":"https://geo.captcha-delivery.com/interstitial/?initialCid=abc&referer=https%3A%2F%2Fapptoogoodtogo.com%2Fapi%2Fauth%2Fv5%2FauthByEmail"}',
+    )
+
+    message = format_tgtg_error(error)
+
+    assert "HTTP 403" in message
+    assert "captcha/bot-protection" in message
+    assert "unofficial Python client cannot solve" in message
+    assert "https://geo.captcha-delivery.com/interstitial/" in message

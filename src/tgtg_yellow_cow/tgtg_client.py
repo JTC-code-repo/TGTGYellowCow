@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+
+class TgtgLoginBlockedError(RuntimeError):
+    """Raised when Too Good To Go blocks e-mail login with bot protection."""
 
 
 class TgtgClientProtocol(Protocol):
@@ -68,13 +74,79 @@ def request_credentials(email: str) -> Credentials:
     from tgtg import TgtgClient
 
     client = TgtgClient(email=email)
-    credentials = client.get_credentials()
+    try:
+        credentials = client.get_credentials()
+    except Exception as exc:
+        message = format_tgtg_error(exc)
+        if _is_captcha_challenge(exc):
+            raise TgtgLoginBlockedError(message) from exc
+        raise
     return Credentials(
         access_token=credentials["access_token"],
         refresh_token=credentials["refresh_token"],
         cookie=credentials["cookie"],
     )
 
+
+def format_tgtg_error(exc: Exception) -> str:
+    """Return a clearer error message for known Too Good To Go failures."""
+
+    if _is_captcha_challenge(exc):
+        captcha_url = _extract_captcha_url(exc)
+        lines = [
+            "Too Good To Go returned HTTP 403 with a captcha/bot-protection challenge during e-mail login.",
+            "",
+            "This usually means Too Good To Go blocked the unofficial API login from this network, IP, or device before it could send/complete the login e-mail flow.",
+            "",
+            "What to try:",
+            "1. Confirm you can log in normally in the official Too Good To Go mobile app.",
+            "2. Close this app, wait a few minutes, then try again from a normal home/mobile network instead of a VPN, proxy, datacenter, or corporate network.",
+            "3. If it keeps happening, Too Good To Go may be requiring an in-browser captcha that the unofficial Python client cannot solve automatically.",
+        ]
+        if captcha_url:
+            lines.extend(["", f"Captcha challenge URL returned by the service: {captcha_url}"])
+        lines.extend(["", f"Original error: {exc}"])
+        return "\n".join(lines)
+    return str(exc)
+
+
+def _is_captcha_challenge(exc: Exception) -> bool:
+    haystack = _exception_text(exc).lower()
+    return "403" in haystack and "captcha-delivery.com" in haystack
+
+
+def _extract_captcha_url(exc: Exception) -> str | None:
+    for arg in exc.args:
+        parsed = _extract_url_from_json_payload(arg)
+        if parsed:
+            return parsed
+    match = re.search(r"https://geo\.captcha-delivery\.com/[^'\")\s]+", _exception_text(exc))
+    return match.group(0) if match else None
+
+
+def _extract_url_from_json_payload(value: Any) -> str | None:
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="replace")
+    if not isinstance(value, str):
+        return None
+    try:
+        payload = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    url = payload.get("url") if isinstance(payload, dict) else None
+    if isinstance(url, str) and "captcha-delivery.com" in url:
+        return url
+    return None
+
+
+def _exception_text(exc: Exception) -> str:
+    parts = [str(exc)]
+    for arg in exc.args:
+        if isinstance(arg, bytes):
+            parts.append(arg.decode("utf-8", errors="replace"))
+        else:
+            parts.append(str(arg))
+    return "\n".join(parts)
 
 def fetch_nearby_bags(
     client: TgtgClientProtocol,

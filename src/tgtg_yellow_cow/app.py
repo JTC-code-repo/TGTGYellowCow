@@ -13,6 +13,7 @@ from .tgtg_client import (
     StoreBag,
     build_client,
     fetch_nearby_bags,
+    format_tgtg_error,
     refresh_bag,
     request_credentials,
     reserve_bag,
@@ -229,8 +230,9 @@ class TgtgMonitorApp(tk.Tk):
                 callback, result = payload
                 callback(result)
             elif event == "background_error":
-                self._show_selectable_error("Error", str(payload))
-                self.status_var.set(f"Error: {payload}")
+                error_message = format_tgtg_error(payload)
+                self._show_selectable_error("Error", error_message)
+                self.status_var.set(f"Error: {error_message}")
         self.after(150, self._drain_events)
 
 
