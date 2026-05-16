@@ -1,6 +1,7 @@
 from tgtg_yellow_cow.tgtg_client import (
     StoreBag,
     TgtgLoginBlockedError,
+    credentials_from_mapping,
     fetch_nearby_bags,
     format_money,
     format_tgtg_error,
@@ -82,6 +83,7 @@ def test_format_tgtg_error_explains_captcha_block():
     assert "HTTP 403" in message
     assert "captcha/bot-protection" in message
     assert "unofficial Python client cannot solve" in message
+    assert "will not bypass captcha" in message
     assert "https://geo.captcha-delivery.com/interstitial/" in message
 
 
@@ -97,3 +99,25 @@ def test_format_tgtg_error_does_not_duplicate_preformatted_login_block():
     assert second_message == first_message
     assert second_message.count("Too Good To Go returned HTTP 403") == 1
     assert second_message.count("Original error:") == 1
+
+
+def test_credentials_from_mapping_validates_required_fields():
+    credentials = credentials_from_mapping(
+        {"access_token": "access", "refresh_token": "refresh", "cookie": "cookie", "user_id": "ignored"}
+    )
+
+    assert credentials.access_token == "access"
+    assert credentials.refresh_token == "refresh"
+    assert credentials.cookie == "cookie"
+
+
+def test_credentials_from_mapping_rejects_user_id_without_cookie():
+    try:
+        credentials_from_mapping({"access_token": "access", "refresh_token": "refresh", "user_id": "user"})
+    except ValueError as exc:
+        message = str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+    assert "cookie" in message
+    assert "user_id alone is not enough" in message

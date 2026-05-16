@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import queue
 import threading
 import tkinter as tk
@@ -12,6 +13,7 @@ from .config import AppConfig, load_config, save_config
 from .tgtg_client import (
     StoreBag,
     build_client,
+    credentials_from_mapping,
     fetch_nearby_bags,
     format_tgtg_error,
     refresh_bag,
@@ -48,6 +50,9 @@ class TgtgMonitorApp(tk.Tk):
         credentials = ttk.LabelFrame(root, text="Account")
         credentials.pack(fill=tk.X)
         ttk.Button(credentials, text="Login / refresh credentials", command=self._login).pack(side=tk.LEFT, padx=4, pady=6)
+        ttk.Button(credentials, text="Paste credentials JSON", command=self._paste_credentials).pack(
+            side=tk.LEFT, padx=4, pady=6
+        )
         self.account_label = ttk.Label(credentials, text=self._account_status())
         self.account_label.pack(side=tk.LEFT, padx=8)
 
@@ -106,12 +111,55 @@ class TgtgMonitorApp(tk.Tk):
             lambda credentials: self._finish_login(credentials),
         )
 
+    def _paste_credentials(self) -> None:
+        dialog = tk.Toplevel(self)
+        dialog.title("Paste Too Good To Go credentials")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("760x420")
+        dialog.minsize(520, 300)
+
+        instructions = (
+            "Paste a JSON object from an existing valid session with access_token, "
+            "refresh_token, and cookie. These values will be saved locally and used "
+            "instead of starting a new e-mail login."
+        )
+        ttk.Label(dialog, text=instructions, wraplength=720, justify=tk.LEFT, padding=12).pack(fill=tk.X)
+        text = tk.Text(dialog, wrap=tk.WORD, height=12)
+        text.insert(
+            "1.0",
+            '{\n  "access_token": "...",\n  "refresh_token": "...",\n  "cookie": "..."\n}',
+        )
+        text.pack(fill=tk.BOTH, expand=True, padx=12)
+        text.focus_set()
+        text.tag_add(tk.SEL, "1.0", tk.END)
+
+        buttons = ttk.Frame(dialog, padding=12)
+        buttons.pack(fill=tk.X)
+
+        def save_pasted_credentials() -> None:
+            try:
+                payload = json.loads(text.get("1.0", tk.END))
+                if not isinstance(payload, dict):
+                    raise ValueError("Credentials JSON must be an object.")
+                credentials = credentials_from_mapping(payload)
+            except Exception as exc:
+                self._show_selectable_error("Invalid credentials JSON", str(exc))
+                return
+            dialog.destroy()
+            self._finish_login(credentials)
+
+        ttk.Button(buttons, text="Save credentials", command=save_pasted_credentials).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(buttons, text="Cancel", command=dialog.destroy).pack(side=tk.RIGHT, padx=4)
+        dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
+        dialog.wait_window()
+
     def _finish_login(self, credentials: Any) -> None:
         self.config_data.credentials = credentials
         save_config(self.config_data)
         self.client = build_client(credentials)
         self.account_label.configure(text=self._account_status())
-        self.status_var.set("Login complete. Credentials saved locally.")
+        self.status_var.set("Credentials saved locally.")
 
     def _load_stores(self) -> None:
         if not self._ensure_client():

@@ -56,6 +56,24 @@ class StoreBag:
         return f"{self.display_name} · {stock} · {self.price}{distance}"
 
 
+def credentials_from_mapping(data: dict[str, Any]) -> Credentials:
+    """Build credentials from a saved/exported credentials mapping."""
+
+    missing = [key for key in ("access_token", "refresh_token", "cookie") if not data.get(key)]
+    if missing:
+        missing_text = ", ".join(missing)
+        raise ValueError(
+            "Missing required credential field(s): "
+            f"{missing_text}. This version of the tgtg client needs access_token, refresh_token, and cookie; "
+            "user_id alone is not enough."
+        )
+    return Credentials(
+        access_token=str(data["access_token"]),
+        refresh_token=str(data["refresh_token"]),
+        cookie=str(data["cookie"]),
+    )
+
+
 def build_client(credentials: Credentials) -> TgtgClientProtocol:
     """Create the upstream TgtgClient lazily so tests do not need network packages."""
 
@@ -81,11 +99,7 @@ def request_credentials(email: str) -> Credentials:
         if _is_captcha_challenge(exc):
             raise TgtgLoginBlockedError(message) from exc
         raise
-    return Credentials(
-        access_token=credentials["access_token"],
-        refresh_token=credentials["refresh_token"],
-        cookie=credentials["cookie"],
-    )
+    return credentials_from_mapping(credentials)
 
 
 def format_tgtg_error(exc: Exception) -> str:
@@ -104,6 +118,7 @@ def format_tgtg_error(exc: Exception) -> str:
             "1. Confirm you can log in normally in the official Too Good To Go mobile app.",
             "2. Close this app, wait a few minutes, then try again from a normal home/mobile network instead of a VPN, proxy, datacenter, or corporate network.",
             "3. If it keeps happening, Too Good To Go may be requiring an in-browser captcha that the unofficial Python client cannot solve automatically.",
+            "4. This app will not bypass captcha or bot-protection. Use the official Too Good To Go app for login/purchase if the challenge persists.",
         ]
         if captcha_url:
             lines.extend(["", f"Captcha challenge URL returned by the service: {captcha_url}"])

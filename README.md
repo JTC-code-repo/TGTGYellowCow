@@ -77,6 +77,29 @@ Then:
 5. Click **Load stores**.
 6. Select a store bag and click **Start**.
 
+
+### Manual credentials instead of e-mail login
+
+If `Login / refresh credentials` is blocked by HTTP 403 captcha protection, do not keep retrying the e-mail login endpoint. If you already have credentials from a legitimate existing Too Good To Go session, click **Paste credentials JSON** and paste:
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "cookie": "..."
+}
+```
+
+This app then saves those credentials to its local config and uses them on the next launch instead of calling `authByEmail` again. For the current `tgtg` client, `access_token`, `refresh_token`, and `cookie` are required; `user_id` by itself is not enough. Treat these values like passwords and do not share them.
+
+To upgrade the unofficial client library before trying again, run inside the activated virtual environment:
+
+```powershell
+python -m pip install -U tgtg
+```
+
+If the latest library still receives HTTP 403 captcha responses, that is a Too Good To Go risk-control block on the login endpoint, not something this app can safely bypass.
+
 ## Test on Windows
 
 Install the test dependencies and run the automated tests:
@@ -88,6 +111,20 @@ python -m compileall -q src tests
 ```
 
 These tests use a fake Too Good To Go client, so they do not require your real account or live API access.
+
+
+## Captcha / HTTP 403 login blocks
+
+If login fails with an HTTP 403 message that mentions `geo.captcha-delivery.com`, Too Good To Go is returning an in-browser captcha/bot-protection challenge before the unofficial Python client can complete e-mail login. This app cannot and will not bypass that protection.
+
+Legitimate options are:
+
+- Continue using the official Too Good To Go mobile app for login, browsing, and purchases.
+- Retry later from the same normal home/mobile network if you believe it was a temporary risk check.
+- Avoid VPNs, proxies, datacenter networks, or aggressive repeated login attempts, which can make bot-protection more likely.
+- Watch for updates to the unofficial `tgtg` package in case it supports a compliant login flow in the future.
+
+Do not try to evade Too Good To Go captcha, bot-protection, rate limits, or terms of service.
 
 ## Notes and safety improvements
 
