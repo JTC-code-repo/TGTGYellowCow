@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tgtg-yellow-cow"
+version = "0.1.0"
+description = "Minimal desktop monitor for nearby Too Good To Go bags."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "tgtg>=0.18.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+tgtg-yellow-cow = "tgtg_yellow_cow.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
